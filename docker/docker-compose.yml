@@ -11,7 +11,7 @@ services:
     
     # image: hanfangyuan/dify-on-wechat:latest # docker hub
     # image: hanfangyuan/dify-on-wechat:arm64  # docker hub arm64
-    image: registry.cn-hangzhou.aliyuncs.com/hanfangyuan/dify-on-wechat:latest # acr
+    image: linyq1/dify-on-wechat:latest # acr
     # image: registry.cn-hangzhou.aliyuncs.com/hanfangyuan/dify-on-wechat:arm64 # acr arm64
     user: root
     restart: always
@@ -53,11 +53,13 @@ services:
       # 更多配置请查看 config.py
     ports:
       - "7860:7860"
+      - "8080:8080"
 
     # 挂载配置和插件目录，防止删除容器后丢失数据，注意需要先复制config-template.json为config.json
     volumes:
       # 如果想要实现在宿主机修改config.json然后通过 #reconf 热更新配置
       # 请执行 chmod 666 config.json，增加容器对宿主机的config.json文件修改权限
       # 注意环境变量配置优先级高于config.json配置
-      - ../config.json:/app/config.json
-      - ../plugins:/app/plugins
+#      - ../config.json:/app/config.json
+#      - ../plugins:/app/plugins
+      - ../:/app/

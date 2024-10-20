@@ -24,6 +24,7 @@ from common.utils import convert_webp_to_png
 from config import conf, get_appdata_dir
 from lib import itchat
 from lib.itchat.content import *
+from app import save_receiver_id  # 导入 save_receiver_id 函数
 
 
 @itchat.msg_register([TEXT, VOICE, PICTURE, NOTE, ATTACHMENT, SHARING])
@@ -240,7 +241,21 @@ class WechatChannel(ChatChannel):
 
     # 统一的发送函数，每个Channel自行实现，根据reply的type字段发送不同类型的消息
     def send(self, reply: Reply, context: Context):
-        receiver = context.get("receiver")
+        # 尝试从 context 获取 receiver，如果不存在，则使用备用方法
+        receiver = getattr(context, 'receiver', None)
+        if receiver is None:
+            # 尝试从 context.kwargs 中获取 receiver
+            receiver = context.kwargs.get('receiver')
+        
+        if receiver is None:
+            logger.error("No receiver found in context")
+            return
+
+        # 在这里调用 save_receiver_id 函数
+        save_receiver_id(receiver)
+
+        logger.info(f"WechatChannel.send: receiver={receiver}, content={reply.content}")
+        
         if reply.type == ReplyType.TEXT:
             itchat.send(reply.content, toUserName=receiver)
             logger.info("[WX] sendMsg={}, receiver={}".format(reply, receiver))
@@ -372,4 +387,7 @@ def _send_qr_code(qrcode_list: list):
             chat_client.send_qrcode(qrcode_list)
     except Exception as e:
         pass
+
+
+
 
