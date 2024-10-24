@@ -13,8 +13,8 @@ from common.log import logger
 available_setting = {
     # webui配置
     "web_ui_port": 7860,
-    "web_ui_username": "dow",
-    "web_ui_password": "dify-on-wechat",
+    "api_username": "dow",  # API 用户名
+    "api_password": "dify-on-wechat",  # API 密码
     # 错误回复消息
     "error_reply": "我暂时遇到了一些问题，请您稍后重试~",
     # openai api配置
@@ -116,7 +116,7 @@ available_setting = {
     # 语音设置
     "speech_recognition": False,  # 是否开启语音识别
     "group_speech_recognition": False,  # 是否开启群组语音识别
-    "voice_reply_voice": False,  # 是否使用语音回复语音，需要设置对应语音合成引擎的api key
+    "voice_reply_voice": False,  # 是否使用语音语音，需要设置对应语音合���引擎的api key
     "always_reply_voice": False,  # 是否一直使用语音回复
     "voice_to_text": "openai",  # 语音识别引擎，支持openai,baidu,google,azure,xunfei,ali
     "text_to_voice": "openai",  # 语音合成引擎，支持openai,baidu,google,azure,xunfei,ali,pytts(offline),elevenlabs,edge(online)
@@ -150,7 +150,7 @@ available_setting = {
     # wechaty的配置
     "wechaty_puppet_service_token": "",  # wechaty的token
     # wechatmp的配置
-    "wechatmp_token": "",  # 微信公众平台的Token
+    "wechatmp_token": "",  # 微信公众平的Token
     "wechatmp_port": 8080,  # 微信公众平台的端口,需要端口转发到80或443
     "wechatmp_app_id": "",  # 微信公众平台的appID
     "wechatmp_app_secret": "",  # 微信公众平台的appsecret
@@ -206,6 +206,10 @@ available_setting = {
     "Minimax_api_key": "",
     "Minimax_group_id": "",
     "Minimax_base_url": "",
+    "redis_host": "localhost",
+    "redis_port": 6379,
+    "redis_db": 0,
+    "redis_password": "",
 }
 
 
@@ -261,6 +265,18 @@ class Config(dict):
                 logger.info("[Config] User datas saved.")
         except Exception as e:
             logger.info("[Config] User datas error: {}".format(e))
+
+    def get_api_username(self):
+        return self.get("api_username", "dow")  # 使用默认值
+
+    def get_api_password(self):
+        return self.get("api_password", "dify-on-wechat")  # 使用默认值
+
+    def get_web_ui_username(self):
+        return self.get("web_ui_username", "dow")  # 使用默认值
+
+    def get_web_ui_password(self):
+        return self.get("web_ui_password", "dify-on-wechat")  # 使用默认值
 
 
 config = Config()
@@ -381,3 +397,8 @@ def pconf(plugin_name: str) -> dict:
 
 # 全局配置，用于存放全局生效的状态
 global_config = {"admin_users": []}
+
+
+
+
+

@@ -13,6 +13,9 @@ from datetime import datetime
 from typing import Optional
 import io
 import redis
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
+from fastapi import Depends, HTTPException, status
+from fastapi.openapi.utils import get_openapi
 
 from channel import channel_factory
 from common import const
@@ -23,8 +26,28 @@ from channel.chat_channel import ChatChannel, Reply, ReplyType, Context, Context
 
 logger = logging.getLogger(__name__)
 
-# 创建 FastAPI 应用
-app = FastAPI()
+# 在文件顶部的导入部分添加或确保有以下导入
+from fastapi import FastAPI, HTTPException, File, UploadFile, Depends
+from fastapi.openapi.utils import get_openapi
+
+# 修改FastAPI应用的初始化
+app = FastAPI(title="dify微信消息发送")
+
+# 添加以下函数来自定义OpenAPI schema
+def custom_openapi():
+    if app.openapi_schema:
+        return app.openapi_schema
+    openapi_schema = get_openapi(
+        title="dify微信消息发送",
+        version="1.0.0",
+        description="这是一个用于发送微信消息的API",
+        routes=app.routes,
+    )
+    app.openapi_schema = openapi_schema
+    return app.openapi_schema
+
+# 设置自定义OpenAPI schema
+app.openapi = custom_openapi
 
 # 定义请求模型
 class BaseMessageRequest(BaseModel):
@@ -46,23 +69,25 @@ channel_ready = threading.Event()
 # 在全局变量部分添加 Redis 客户端
 # 连接到Redis服务器，包含密码认证
 redis_client = redis.Redis(
-    host='121.43.145.233',
-    port=31008,
-    db=0,
-    password='lingyinqvan456'  # 添加密码参数
+    host=conf().get("redis_host", "localhost"),
+    port=conf().get("redis_port", 6379),
+    db=conf().get("redis_db", 0),
+    password=conf().get("redis_password", "")
 )
 
-def clear_receiver_cache():
-    """清空 receiver_cache.json 文件"""
-    try:
-        with open('receiver_cache.json', 'w') as f:
-            json.dump({}, f)
-        logger.info("Cleared receiver_cache.json")
-    except Exception as e:
-        logger.error(f"Error clearing receiver_cache.json: {e}")
+# 在全局变量部分添加以下内容
+security = HTTPBasic()
 
-# 移除全局的 receiver_cache 变量
-# receiver_cache = {}
+def verify_credentials(credentials: HTTPBasicCredentials = Depends(security)):
+    correct_username = conf().get_api_username()
+    correct_password = conf().get_api_password()
+    if credentials.username != correct_username or credentials.password != correct_password:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="无效的用户名或密码",
+            headers={"WWW-Authenticate": "Basic"},
+        )
+    return credentials.username
 
 def sigterm_handler_wrap(_signo):
     old_handler = signal.getsignal(_signo)
@@ -118,7 +143,7 @@ def save_receiver_id(receiver_id):
 
 # 修改发送文本消息的 API 端点
 @app.post("/send_text_message")
-async def send_text_message(request: TextMessageRequest):
+async def send_text_message(request: TextMessageRequest, username: str = Depends(verify_credentials)):
     if not channel_ready.is_set():
         raise HTTPException(status_code=503, detail="WechatChannel is not ready")
     
@@ -136,7 +161,7 @@ async def send_text_message(request: TextMessageRequest):
 
 # 添加发送网络图片的 API 端点
 @app.post("/send_image_url")
-async def send_image_url(request: ImageUrlMessageRequest):
+async def send_image_url(request: ImageUrlMessageRequest, username: str = Depends(verify_credentials)):
     if not channel_ready.is_set():
         raise HTTPException(status_code=503, detail="WechatChannel is not ready")
     
@@ -153,7 +178,7 @@ async def send_image_url(request: ImageUrlMessageRequest):
 
 # 添加发送本地图片文件的 API 端点
 @app.post("/send_image_file")
-async def send_image_file(user_id: str, file: UploadFile = File(...)):
+async def send_image_file(user_id: str, file: UploadFile = File(...), username: str = Depends(verify_credentials)):
     if not channel_ready.is_set():
         raise HTTPException(status_code=503, detail="WechatChannel is not ready")
     
@@ -171,7 +196,7 @@ async def send_image_file(user_id: str, file: UploadFile = File(...)):
 
 # 添加发送文件的 API 端点
 @app.post("/send_file")
-async def send_file(user_id: str, file: UploadFile = File(...)):
+async def send_file(user_id: str, file: UploadFile = File(...), username: str = Depends(verify_credentials)):
     if not channel_ready.is_set():
         raise HTTPException(status_code=503, detail="WechatChannel is not ready")
     
@@ -187,9 +212,9 @@ async def send_file(user_id: str, file: UploadFile = File(...)):
         logger.error(f"Failed to send file: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to send file: {str(e)}")
 
-# 添加发送网���视频的 API 端点
+# 添加发送网视频的 API 端点
 @app.post("/send_video_url")
-async def send_video_url(request: VideoUrlMessageRequest):
+async def send_video_url(request: VideoUrlMessageRequest, username: str = Depends(verify_credentials)):
     if not channel_ready.is_set():
         raise HTTPException(status_code=503, detail="WechatChannel is not ready")
     
@@ -206,7 +231,7 @@ async def send_video_url(request: VideoUrlMessageRequest):
 
 # 添加发送本地视频文件的 API 端点
 @app.post("/send_video_file")
-async def send_video_file(user_id: str, file: UploadFile = File(...)):
+async def send_video_file(user_id: str, file: UploadFile = File(...), username: str = Depends(verify_credentials)):
     if not channel_ready.is_set():
         raise HTTPException(status_code=503, detail="WechatChannel is not ready")
     
@@ -224,7 +249,7 @@ async def send_video_file(user_id: str, file: UploadFile = File(...)):
 
 # 修改获取 receiver IDs 的 API 端点
 @app.get("/get_receivers")
-async def get_receivers():
+async def get_receivers(username: str = Depends(verify_credentials)):
     try:
         with open('receiver_cache.json', 'r') as f:
             receiver_cache = json.load(f)
@@ -235,7 +260,7 @@ async def get_receivers():
         logger.error(f"Error reading receiver cache: {e}")
         raise HTTPException(status_code=500, detail="Error reading receiver cache")
 
-# 添加新的请求模型用于 Redis 操作
+# 添加新的请模型用于 Redis 操作
 class RedisWriteRequest(BaseModel):
     key: str
     value: str
@@ -246,7 +271,7 @@ class RedisReadRequest(BaseModel):
 
 # 添加向 Redis 写入数据的 API 端点
 @app.post("/write_to_redis")
-async def write_to_redis(request: RedisWriteRequest):
+async def write_to_redis(request: RedisWriteRequest, username: str = Depends(verify_credentials)):
     try:
         if request.expire is not None:
             # 如果提供了过期时间，使用 setex 命令
@@ -266,7 +291,7 @@ async def write_to_redis(request: RedisWriteRequest):
 
 # 添加从 Redis 读取数据的 API 端点
 @app.post("/read_from_redis")
-async def read_from_redis(request: RedisReadRequest):
+async def read_from_redis(request: RedisReadRequest, username: str = Depends(verify_credentials)):
     try:
         value = redis_client.get(request.key)
         if value is None:
@@ -282,9 +307,6 @@ def run_fastapi():
 def run():
     global receiver_cache
     try:
-        # 在加载配置之前清空 receiver_cache.json
-        clear_receiver_cache()
-
         # load config
         load_config()
         # ctrl + c
